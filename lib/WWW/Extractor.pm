@@ -1,6 +1,6 @@
 package WWW::Extractor;
 use strict;
-$WWW::Extractor::VERSION = '0.1';
+$WWW::Extractor::VERSION = '0.2';
 
 
 =head1 NAME
@@ -90,19 +90,9 @@ then matches the rest of the text to that one grammar.
 
 =back
 
-=head1 DISCUSSION AND DEVELOPMENT
+==head1 METHODS
 
-A wiki on this module is located at
-
-http://www.gnacademy.org/twiki/bin/view/Gna/AutomatedDataExtraction
-
-Please contact gna@gnacademy.org for ideas on improvements.
-
-=head1 COPYRIGHT AND LICENSE
-
-Copyright 2002, 2003 Globewide Network Academy
-
-Redistributed under the terms of the Lesser GNU Public License
+=over 4
 
 =cut
 
@@ -121,6 +111,8 @@ sub new {
     $self->{'exact_tables'} = 1;
     $self->{'start_tags'} =  2;
     $self->{'end_tags'} = 1;
+    $self->{'dump_one'} = 0;
+    $self->{'dump_hrefs'} = 0;
     return $self;
 }
 
@@ -151,6 +143,9 @@ sub process {
 	}
 	my($g, $context) = $self->incorporate_item($g, $i);
 	$self->dump($context);
+	if ($self->{'dump_one'}) {
+	    last;
+	}
     }
 }
 
@@ -187,11 +182,15 @@ sub tokenize {
     $lp =~ s/\{\{\{(.*?)\}\}\}/$1/gs;
 
     foreach $i (@match_token) {
-	$lp =~ s/$i/[[[$i]]]/gs;
+	my ($iin) = $i;
+	$iin =~ s/([\[\(\)\]])/\\$1/gs;
+	$lp =~ s/$iin/[[[$i]]]/gs;
     }
 
     foreach $i (@imatch_token) {
-	$lp =~ s/$i/{{{$i}}}/gs;
+	my ($iin) = $i;
+	$iin =~ s/([\[\(\)\]])/\\$1/gs;
+	$lp =~ s/$iin/{{{$i}}}/gs;
     }
 
     push(@match_token, @imatch_token);
@@ -529,7 +528,7 @@ sub dump {
 	    } elsif ($class =~ /\[\[\[(.*?)\]\]\]/) {
 		$returnval .= "$1";
 	    } elsif ($class =~ /<a>/) {
-		if ($item =~ /href/i) {
+		if ($item =~ /href/i && $self->{'dump_hrefs'}) {
 		    $item =~ /href=\"(.*?)\"/i;
 		    $returnval .= "   $1 ";
 		}
@@ -557,6 +556,14 @@ sub dump {
     print "$returnval\n\n";
 }
 
+=pod
+
+=item $self->debug(i)
+
+Set the debug level.  Higher numbers turn on more debug levels.
+
+=cut
+
 sub debug {
     my($self, $debug) = @_;
     if (defined($debug)) {
@@ -565,3 +572,58 @@ sub debug {
     return $self->{'debug'};
 }
 
+=pod
+
+=item $self->dump_one(i)
+
+If set to one, dump only one record and exit.  This is useful for testing
+
+=cut
+
+
+sub dump_one {
+    my($self, $d1) = @_;
+    if (defined($d1)) {
+	$self->{'dump_one'} = $d1;
+    }
+    return $self->{'dump_one'};
+}
+
+
+=pod
+
+=item $self->expand_hrefs(i)
+
+If set to one, dump only one record and exit.  This is useful for testing
+
+=cut
+
+
+sub expand_hrefs {
+    my($self, $d1) = @_;
+    if (defined($d1)) {
+	$self->{'expand_hrefs'} = $d1;
+    }
+    return $self->{'expand_hrefs'};
+}
+
+=pod
+
+=back
+
+
+=head1 DISCUSSION AND DEVELOPMENT
+
+A wiki on this module is located at
+
+http://www.gnacademy.org/twiki/bin/view/Gna/AutomatedDataExtraction
+
+Please contact gna@gnacademy.org for ideas on improvements.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 2002, 2003 Globewide Network Academy
+
+Redistributed under the terms of the Lesser GNU Public License
+
+=cut
