@@ -11,13 +11,17 @@ my ($start_tags) = 2;
 my ($end_tags) = 1;
 my ($dump_one) = 0;
 my ($expand_hrefs) = 0;
+my ($extract_grammar) = 0;
+my ($load_grammar) = "";
 
 GetOptions("debug=i"=>\$debug,
 	   "exact-tables!"=>\${exact_tables},
 	   "start-tags=i"=>\$start_tags,
 	   "end-tags=i"=>\$end_tags,
 	   "expand-hrefs"=>\${expand_hrefs},
-	   "dump-one"=>\${dump_one}
+	   "dump-one"=>\${dump_one},
+	   "extract-grammar"=>\${extract_grammar},
+	   "load-grammar=s"=>\${load_grammar}
 );
 my ($extractor) = WWW::Extractor->new();
 $extractor->debug($debug);
@@ -29,14 +33,29 @@ $extractor->capture("href",
 
 my ($lp) = "";
 while (<STDIN>) {
-   $lp .= $_;
+    s/\r//gi;
+    $lp .= $_;
 }
 
 $lp =~ s/<\!\-\-.*?\-\->//gis;
 $lp =~ s/\&nbsp;/ /gis;
 
 my (%f);
-$extractor->open($lp);
+
+if ($extract_grammar) {
+    my($tokens) = $extractor->tokenize($lp);
+    my($g) = $extractor->extract_grammar($tokens);
+    print Dumper($g), "\n";
+    exit;
+}
+
+if ($load_grammar ne "") {
+    require $load_grammar;
+    $g = $VAR1;
+    $extractor->open($lp, $g);
+} else {
+    $extractor->open($lp);
+}
 
 while ($extractor->read(\%f)) {
     my ($item);

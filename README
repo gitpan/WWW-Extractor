@@ -33,6 +33,8 @@ The distribution contains a sample driver application and test data in
 the examples directory.  To look at the markup for the test data,
 search for the (((BEGIN))) tag.
 
+DIRECT MODE
+
 To run
 
 ./learn.wrapper < sample1.html
@@ -42,8 +44,20 @@ In order to move the contents of a hypertext link out of the tag, use
 
 ./learn.wrapper < sample2.html
 
+SAVING A GRAMMAR
+
+
+To save off a grammar
+
+./learn.wrapper --extract-grammar < ./sample1.html > /tmp/saved.grammar
+
+You can then use this grammar to do future parsing
+
+./learn.wrapper --load-grammar /tmp/saved.grammar < ./sample1.html
+
+
 COPYRIGHT AND LICENCE
 
-Copyright (C) 2002, 2003 Globewide Network Academy
+Copyright (C) 2002-2004 Globewide Network Academy
 
 Redistributed under the terms of the Lesser GNU Public License

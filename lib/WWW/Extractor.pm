@@ -1,6 +1,6 @@
 package WWW::Extractor;
 use strict;
-$WWW::Extractor::VERSION = '0.5';
+$WWW::Extractor::VERSION = '0.6';
 
 
 =head1 NAME
@@ -139,12 +139,19 @@ Opens a string for processing.
 =cut
 
 sub open {
-    my ($self, $lp) = @_;
+    my ($self, $lp, $grammar) = @_;
     $self->{'tokens'} = 
-	$self->_tokenize($lp);
-    my ($g, $context) = $self->_initialize($self->{'tokens'});
-    $self->{'grammar'} = $g;
-
+	$self->tokenize($lp);
+    if ($grammar eq undef) {
+	my ($g, $context) = $self->extract_grammar($self->{'tokens'});
+	$self->{'grammar'} = $g;
+	if ($self->{'debug'} > 250) {
+	    print "Initial grammar: ", Dumper($g), "\n";
+	    print "Initial content: ", Dumper($context), "\n";
+	}
+    } else {
+	$self->{'grammar'} = $grammar;
+    }
 
     my (@ap) = @{$self->{'tokens'}};
     my ($item);
@@ -155,10 +162,6 @@ sub open {
 	}
     }
 
-    if ($self->{'debug'} > 250) {
-	print "Initial grammar: ", Dumper($g), "\n";
-	print "Initial content: ", Dumper($context), "\n";
-    }
 }
 
 
@@ -299,7 +302,7 @@ sub process {
     $self->close();
 }
 
-sub _tokenize {
+sub tokenize {
     my($self, $lp) = @_;
     my($i) = $lp;
     my (@match_token) = ();
@@ -402,7 +405,7 @@ sub _classify {
     return "C";
 }
 
-sub _initialize {
+sub extract_grammar {
     my ($self, $ap) = @_;
     if ($self->{'debug'} > 50) {
 	print "initializing\n";
@@ -777,13 +780,25 @@ The distribution contains a sample driver application and test data in
 the examples directory.  To look at the markup for the test data,
 search for the (((BEGIN))) tag.
 
-To run a basic example
+=head2 Direct mode
 
-./examples/learn.wrapper < ./examples/sample1.html
+To run
+
+./learn.wrapper < ./sample1.html
 
 To run an example with --expand-hrefs
 
-./examples/learn.wrapper --expand-hrefs < ./examples/sample1.html
+./learn.wrapper --expand-hrefs < ./sample1.html
+
+=head2 Saving a grammar
+
+To save off a grammar
+
+./learn.wrapper --extract-grammar < ./sample1.html > /tmp/saved.grammar
+
+You can then use this grammar to do future parsing
+
+./learn.wrapper --load-grammar /tmp/saved.grammar < ./sample1.html
 
 =head1 DISCUSSION AND DEVELOPMENT
 
@@ -795,7 +810,7 @@ Please contact gna@gnacademy.org for ideas on improvements.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2002, 2003 Globewide Network Academy
+Copyright (C) 2002-2004 Globewide Network Academy
 
 Redistributed under the terms of the Lesser GNU Public License
 
