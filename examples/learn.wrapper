@@ -28,6 +28,7 @@ $extractor->debug($debug);
 $extractor->expand_hrefs($expand_hrefs);
 $extractor->start_tags($start_tags);
 $extractor->end_tags($end_tags);
+$extractor->exact_tables($exact_tables);
 $extractor->capture("href",
 		    qr/<hr>\*\*\s+(.*?)<br>/);
 

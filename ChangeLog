@@ -1,3 +1,12 @@
+2005-03-15  Joseph Wang  <joe@confucius.gnacademy.org>
+
+	* Version 0.7
+	* Make the grammar input work with tags
+
+2004-08-30  Joseph Wang  <joe@confucius.gnacademy.org>
+
+	* Add exact table method to library
+
 2004-08-24  Joseph Wang  <joe@confucius.gnacademy.org>
 	* Version 0.6
 

@@ -1,6 +1,6 @@
 package WWW::Extractor;
 use strict;
-$WWW::Extractor::VERSION = '0.6';
+$WWW::Extractor::VERSION = '0.7';
 
 
 =head1 NAME
@@ -140,9 +140,8 @@ Opens a string for processing.
 
 sub open {
     my ($self, $lp, $grammar) = @_;
-    $self->{'tokens'} = 
-	$self->tokenize($lp);
     if ($grammar eq undef) {
+	$self->{'tokens'} = $self->tokenize($lp);
 	my ($g, $context) = $self->extract_grammar($self->{'tokens'});
 	$self->{'grammar'} = $g;
 	if ($self->{'debug'} > 250) {
@@ -151,6 +150,7 @@ sub open {
 	}
     } else {
 	$self->{'grammar'} = $grammar;
+	$self->{'tokens'} = $self->tokenize($lp);
     }
 
     my (@ap) = @{$self->{'tokens'}};
@@ -287,6 +287,23 @@ sub end_tags {
 }
 
 
+=pod
+=item $self->exact_tables(i)
+
+If set to one then match table tags exactly.  Otherwise ignore internal
+table items.
+
+=cut
+
+sub exact_tables {
+    my($self, $d1) = @_;
+    if (defined($d1)) {
+	$self->{'exact_tables'} = $d1;
+    }
+    return $self->{'exact_tables'};
+}
+
+
 sub process {
     my ($self, $lp) = @_;
     my (%f);
@@ -326,6 +343,13 @@ sub tokenize {
 	$i = $POSTMATCH;
     }
 
+    if ($self->{'grammar'} ne undef) {
+	foreach $i (@{$self->{'grammar'}}) {
+	    if ($i =~ m/\[\[\[([^\]]+)\]\]\]/s) {push(@match_token, $1);}
+	    if ($i =~ m/\{\{\{([^\}]+)\}\}\}/s) {push(@imatch_token, $1);}
+	}
+    }
+
     if ($self->{'debug'} > 500) {
 	print Dumper(\@match_token);
 	print Dumper(\@imatch_token);
@@ -353,9 +377,9 @@ sub tokenize {
     } else {
 	$insert_string = "";
     }
-
+    $lp =~ s/&nbsp;/ /gi;
     my (@lp) = split(/\s*(${insert_string}\(\(\([^\)]+?\)\)\)|\[\[\[[^\]]+?\]\]\]|\{\{\{[^\}]+?\}\}\}|<[^>]+>|\-\s+|\n\s+|\&\#183|\;|\|)\s*/, $lp);
-		     @lp = grep {$_ ne ""} @lp;
+    @lp = grep {$_ ne ""} @lp;
     return \@lp;
 }
 
