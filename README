@@ -35,7 +35,12 @@ search for the (((BEGIN))) tag.
 
 To run
 
-./learn.wrapper < sample.html
+./learn.wrapper < sample1.html
+
+In order to move the contents of a hypertext link out of the tag, use
+--expand-hrefs.  For an example of how to do this look at sample2.html
+
+./learn.wrapper < sample2.html
 
 COPYRIGHT AND LICENCE
 

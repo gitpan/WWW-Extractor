@@ -10,14 +10,20 @@ my ($exact_tables) = 1;
 my ($start_tags) = 2;
 my ($end_tags) = 1;
 my ($dump_one) = 0;
+my ($expand_hrefs) = 0;
 
 GetOptions("debug=i"=>\$debug,
 	   "exact-tables!"=>\${exact_tables},
 	   "start-tags=i"=>\$start_tags,
+	   "end-tags=i"=>\$end_tags,
+	   "expand-hrefs"=>\${expand_hrefs},
 	   "dump-one"=>\${dump_one}
 );
 my ($extractor) = WWW::Extractor->new();
 $extractor->debug($debug);
+$extractor->expand_hrefs($expand_hrefs);
+$extractor->start_tags($start_tags);
+$extractor->end_tags($end_tags);
 $extractor->capture("href",
 		    qr/<hr>\*\*\s+(.*?)<br>/);
 

@@ -1,6 +1,6 @@
 package WWW::Extractor;
 use strict;
-$WWW::Extractor::VERSION = '0.4';
+$WWW::Extractor::VERSION = '0.5';
 
 
 =head1 NAME
@@ -120,7 +120,7 @@ sub new {
     $self->{'exact_tables'} = 1;
     $self->{'start_tags'} =  2;
     $self->{'end_tags'} = 1;
-    $self->{'dump_hrefs'} = 0;
+    $self->{'expand_hrefs'} = 0;
     $self->{'tokens'} = [];
     $self->{'finish_tag'} = [];
     $self->{'grammar'} = [];
@@ -144,6 +144,16 @@ sub open {
 	$self->_tokenize($lp);
     my ($g, $context) = $self->_initialize($self->{'tokens'});
     $self->{'grammar'} = $g;
+
+
+    my (@ap) = @{$self->{'tokens'}};
+    my ($item);
+    $self->{'tokens'} = [];
+    foreach $item (@ap) {
+	if ($self->_classify($item) !~ /^\(\(\(.*?\)\)\)$/s) {
+	    push(@{$self->{'tokens'}}, $item);
+	}
+    }
 
     if ($self->{'debug'} > 250) {
 	print "Initial grammar: ", Dumper($g), "\n";
@@ -169,7 +179,7 @@ sub read {
     %{$f} = ();
 
     if ($self->{'debug'} > 150) {
-	print $score, Dumper($i);
+	print "Next item: ", $score, Dumper($i);
     }
     if (!$i) {
 	return 0;
@@ -226,10 +236,10 @@ sub debug {
 }
 
 =pod
-
 =item $self->expand_hrefs(i)
 
-If set to one, dump only one record and exit.  This is useful for testing
+If set to one then expand out the internal A tags and IMG tags to
+moving the href outside the tag.
 
 =cut
 
@@ -239,6 +249,38 @@ sub expand_hrefs {
 	$self->{'expand_hrefs'} = $d1;
     }
     return $self->{'expand_hrefs'};
+}
+
+=pod
+=item $self->start_tags(i)
+
+Set to the number of tags to match at the beginning of each entry.
+Default is 2.
+
+=cut
+
+sub start_tags {
+    my($self, $d1) = @_;
+    if (defined($d1)) {
+	$self->{'start_tags'} = $d1;
+    }
+    return $self->{'start_tags'};
+}
+
+
+=pod
+=item $self->end_tags(i)
+
+Number of tags to match at the end of an entry,  The default is 1.
+
+=cut
+
+sub end_tags {
+    my($self, $d1) = @_;
+    if (defined($d1)) {
+	$self->{'end_tags'} = $d1;
+    }
+    return $self->{'end_tags'};
 }
 
 
@@ -428,7 +470,7 @@ sub _find_next_item {
     my ($g) = $self->{'grammar'};
     my ($dnewlocal, $dlocal, $dbest) = 
 	(998, 999, 1000);
-    my ($ib, $ie, $newib) = (0, 0, 0);
+    my ($ib, $ie, $newib) = (-1, -1, -1);
     my ($local_best_item, $best_item) = 
 	("", "");
     my (@gprocessed) = grep {$self->_classify($_) !~ /\(\(\(.*\)\)\)/} @{$g};
@@ -443,6 +485,11 @@ sub _find_next_item {
 	    print "Start find indices for ",
 	    Dumper(\@start_tags), "\n";
 	}
+	if ($self->{'debug'} > 1000) {
+	    print "Match with ",
+	    Dumper($ap), "\n";
+	}
+
 	($newib) = $self->_find_indices ($ap, [\@start_tags], $ib+1);
 	if ($self->{'debug'} > 500) {
 	    print "Newib: $newib\n";
@@ -482,6 +529,10 @@ sub _find_next_item {
 		last;
 	    }
 	    $ie = $newie;
+	    if ($self->{'debug'} > 500) {
+		print "ie: $ie\n";
+	    }
+
 	    $local_best_item = $new_local_best_item;
 	}
 	$best_item = $local_best_item;
@@ -585,7 +636,8 @@ sub _find_indices {
     my ($current_item) = 0;
 
     if ($self->{'debug'} > 100) {
-	print "start find indices\n", Dumper($itemref), "\n";
+	print "start find index\n   index: ", $index,
+	Dumper($itemref), "\n";
     }
 
     if ($index eq undef) {
@@ -656,6 +708,11 @@ sub _dump_hash {
 	if ($class eq "(((nodump)))") {
 	    $dump = 0;
 	} 
+	if ($self->{'debug'} > 500) {
+	    print "Item: ", $item, "\n";
+	    print "Class: ", $class, "\n";
+	    print "\n\n";
+	}
 
      	if ($dump) {
 	    if ($class =~ /\(\(\((.*?)\)\)\)/) {
@@ -669,13 +726,19 @@ sub _dump_hash {
 	    } elsif ($class =~ /\[\[\[(.*?)\]\]\]/) {
 		$returnval .= "$1";
 	    } elsif ($class =~ /<a>/) {
-		if ($item =~ /href/i && $self->{'dump_hrefs'}) {
+		if ($item =~ /href/i && $self->{'expand_hrefs'}) {
+		    if ($self->{'debug'} > 500) {
+			print "Expand hrefs\n";
+		    }
 		    $item =~ /href=\"(.*?)\"/i;
 		    $returnval .= "   $1 ";
 		}
 	    } elsif ($class =~ /<img>/) {
 		if ($item =~ /src/i &&
-		    $self->{'dump_hrefs'}) {
+		    $self->{'expand_hrefs'}) {
+		    if ($self->{'debug'} > 500) {
+			print "Expand hrefs\n";
+		    }
 		    $item =~ /src=\"(.*?)\"/i;
 		    $returnval .= "   $1 ";
 		}
@@ -714,9 +777,13 @@ The distribution contains a sample driver application and test data in
 the examples directory.  To look at the markup for the test data,
 search for the (((BEGIN))) tag.
 
-To run
+To run a basic example
 
-./examples/learn.wrapper < ./examples/sample.html
+./examples/learn.wrapper < ./examples/sample1.html
+
+To run an example with --expand-hrefs
+
+./examples/learn.wrapper --expand-hrefs < ./examples/sample1.html
 
 =head1 DISCUSSION AND DEVELOPMENT
 

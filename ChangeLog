@@ -1,5 +1,18 @@
+2004-01-05  Joseph Wang  <joe@confucius.gnacademy.org>
+
+	* Version 0.5
+	* Fixed bug which caused adjacent items to break
+	* Fixed bug which caused (((tags))) to interfere with finding the
+	  start and stop of sections
+	* Add sample to illustrate expand-hrefs
+
+2004-01-04  Joseph Wang  <joe@confucius.gnacademy.org>
+
+	* Changed expand_hrefs to actually work
+
 2003-07-11  Joseph Wang  <joe@confucius.gnacademy.org>
 
+	* Version 0.4
 	* Created Change log
 	* Added some example files
 	* Refactored the module so that you can get out hash information
