@@ -1,6 +1,6 @@
 package WWW::Extractor;
 use strict;
-$WWW::Extractor::VERSION = '0.3';
+$WWW::Extractor::VERSION = '0.4';
 
 
 =head1 NAME
@@ -90,7 +90,7 @@ then matches the rest of the text to that one grammar.
 
 =back
 
-==head1 METHODS
+=head1 METHODS
 
 =over 4
 
@@ -101,6 +101,15 @@ use Data::Dumper;
 use strict;
 use integer;
 use English;
+
+=pod
+
+=item $self->new()
+
+Standard constructor
+
+=cut
+
 
 sub new {
     my $proto = shift;
@@ -115,14 +124,25 @@ sub new {
     $self->{'tokens'} = [];
     $self->{'finish_tag'} = [];
     $self->{'grammar'} = [];
+    $self->{'capture_regexp'} = "";
+    $self->{'capture_field'} = "";
+    $self->{'capture_string'} = "";
     return $self;
 }
+
+=pod
+
+=item $self->open($string)
+
+Opens a string for processing.
+
+=cut
 
 sub open {
     my ($self, $lp) = @_;
     $self->{'tokens'} = 
-	$self->tokenize($lp);
-    my ($g, $context) = $self->initialize($self->{'tokens'});
+	$self->_tokenize($lp);
+    my ($g, $context) = $self->_initialize($self->{'tokens'});
     $self->{'grammar'} = $g;
 
     if ($self->{'debug'} > 250) {
@@ -131,10 +151,20 @@ sub open {
     }
 }
 
+
+
+=pod
+
+=item $self->read($hashref)
+
+Read the next processed entry into a hash pointer.
+
+=cut
+
 sub read {
     my ($self, $f) = @_;
     my ($i, $gp, $w);
-    my($score, $i) = $self->find_next_item();
+    my($score, $i) = $self->_find_next_item();
     
     %{$f} = ();
 
@@ -144,14 +174,71 @@ sub read {
     if (!$i) {
 	return 0;
     }
-    my($context) = $self->incorporate_item($i);
+    my($context) = $self->_incorporate_item($i);
        
-    $self->dump_hash($context, $f);
+    $self->_dump_hash($context, $f);
     return 1;
 }
 
+
+=pod
+
+=item $self->close()
+
+Closes off the string
+
+=cut
+
 sub close {
     my ($self) = @_;
+}
+=pod
+=item $self->capture($field, $regexp)
+
+Captures a string that is outside of an entry and inserts it into an entry hash.  The
+routine takes two arguments.  One is the field that the entry hash is to be included 
+in.  The other is the regular expression which matches the field.
+
+=cut
+
+sub capture {
+    my ($self, $capture_field, $capture_regexp) = @_;
+    $self->{'capture_field'} = $capture_field;
+    $self->{'capture_regexp'} = $capture_regexp;
+    $self->{'capture_string'} = "";
+}
+
+
+=pod
+
+=item $self->debug(i)
+
+Set the debug level.  Higher numbers turn on more debug levels.
+
+=cut
+
+sub debug {
+    my($self, $debug) = @_;
+    if (defined($debug)) {
+	$self->{'debug'} = $debug;
+    }
+    return $self->{'debug'};
+}
+
+=pod
+
+=item $self->expand_hrefs(i)
+
+If set to one, dump only one record and exit.  This is useful for testing
+
+=cut
+
+sub expand_hrefs {
+    my($self, $d1) = @_;
+    if (defined($d1)) {
+	$self->{'expand_hrefs'} = $d1;
+    }
+    return $self->{'expand_hrefs'};
 }
 
 
@@ -170,7 +257,7 @@ sub process {
     $self->close();
 }
 
-sub tokenize {
+sub _tokenize {
     my($self, $lp) = @_;
     my($i) = $lp;
     my (@match_token) = ();
@@ -215,12 +302,19 @@ sub tokenize {
     }
 
     push(@match_token, @imatch_token);
-    my (@lp) = split(/\s*(\(\(\([^\)]+?\)\)\)|\[\[\[[^\]]+?\]\]\]|\{\{\{[^\}]+?\}\}\}|<[^>]+>|\-\s+|\n\s+|\&\#183|\;|\|)\s*/, $lp);
+    my ($insert_string) = "";
+    if ($self->{'capture_regexp'} ne "") {
+	$insert_string = $self->{'capture_regexp'} . "|";
+    } else {
+	$insert_string = "";
+    }
+
+    my (@lp) = split(/\s*(${insert_string}\(\(\([^\)]+?\)\)\)|\[\[\[[^\]]+?\]\]\]|\{\{\{[^\}]+?\}\}\}|<[^>]+>|\-\s+|\n\s+|\&\#183|\;|\|)\s*/, $lp);
 		     @lp = grep {$_ ne ""} @lp;
     return \@lp;
 }
 
-sub classify {
+sub _classify {
     my ($self, $item) = @_;
     if ($item =~ /^\s+$/is) {
 	return "B";
@@ -266,14 +360,12 @@ sub classify {
     return "C";
 }
 
-
-
-sub initialize {
+sub _initialize {
     my ($self, $ap) = @_;
     if ($self->{'debug'} > 50) {
 	print "initializing\n";
     }
-    my ($start, $finish) = $self->find_indices($ap, [q/(((BEGIN)))/,
+    my ($start, $finish) = $self->_find_indices($ap, [q/(((BEGIN)))/,
 						     q/(((END)))/]);
 
     if ($self->{'debug'} > 100) {
@@ -285,18 +377,18 @@ sub initialize {
 }
 
 
-sub edit_distance {
+sub _edit_distance {
     my ($self, $s1, $s2) = @_;
     my ($item, @s1p, @s2p);
-    @s1p = grep {$self->classify($_) !~ /\(\(\(.*\)\)\)/} @$s1;
-    @s2p = grep {$self->classify($_) !~ /\(\(\(.*\)\)\)/} @$s2;
+    @s1p = grep {$self->_classify($_) !~ /\(\(\(.*\)\)\)/} @$s1;
+    @s2p = grep {$self->_classify($_) !~ /\(\(\(.*\)\)\)/} @$s2;
     
-    my ($m) = $self->edit_distance_matrix(\@s1p, \@s2p);
+    my ($m) = $self->_edit_distance_matrix(\@s1p, \@s2p);
     my (@a) = $m->dims();
     return $m->at($a[0] - 1, $a[1] - 1);
 }
 
-sub edit_distance_matrix {
+sub _edit_distance_matrix {
     my ($self, $s1p, $s2p) = @_;
     if ($self->{'debug'} > 10) {
 	print "**** Edit distance matrix " .
@@ -313,8 +405,8 @@ sub edit_distance_matrix {
 	for ($j=1; $j <= scalar(@$s2p) ; $j++) {
 
 	    my ($diag) = $m->at($i-1, $j-1);
-	    if ($self->classify($s1p->[$i-1]) ne
-		$self->classify($s2p->[$j-1])) {
+	    if ($self->_classify($s1p->[$i-1]) ne
+		$self->_classify($s2p->[$j-1])) {
 		$diag++;
 	    }
 	    my ($item) = $diag;
@@ -330,7 +422,7 @@ sub edit_distance_matrix {
     return $m;
 }
 
-sub find_next_item {
+sub _find_next_item {
     my ($self) = @_;
     my ($ap) = $self->{'tokens'};
     my ($g) = $self->{'grammar'};
@@ -339,7 +431,7 @@ sub find_next_item {
     my ($ib, $ie, $newib) = (0, 0, 0);
     my ($local_best_item, $best_item) = 
 	("", "");
-    my (@gprocessed) = grep {$self->classify($_) !~ /\(\(\(.*\)\)\)/} @{$g};
+    my (@gprocessed) = grep {$self->_classify($_) !~ /\(\(\(.*\)\)\)/} @{$g};
     my (@start_tags) = @gprocessed[0..($self->{'start_tags'})-1];
     my ($glim) = scalar(@gprocessed);
     my (@end_tags) = @gprocessed[$glim-$self->{'end_tags'}..$glim-1];
@@ -351,7 +443,7 @@ sub find_next_item {
 	    print "Start find indices for ",
 	    Dumper(\@start_tags), "\n";
 	}
-	($newib) = $self->find_indices ($ap, [\@start_tags], $ib+1);
+	($newib) = $self->_find_indices ($ap, [\@start_tags], $ib+1);
 	if ($self->{'debug'} > 500) {
 	    print "Newib: $newib\n";
 	}
@@ -364,7 +456,7 @@ sub find_next_item {
 		print "Entering loop starting at $ie.  Searching for ",
 		Dumper(\@end_tags), "\n";
 	    }
-	    my($newie) = $self->find_indices($ap, [\@end_tags], $ie+1);
+	    my($newie) = $self->_find_indices($ap, [\@end_tags], $ie+1);
 	    if ($self->{'debug'} > 500) {
 		print "newie: $newie\n";
 	    }
@@ -381,7 +473,7 @@ sub find_next_item {
 		print Dumper($new_local_best_item);
 	    }
 
-	    $dnewlocal = $self->edit_distance($g,
+	    $dnewlocal = $self->_edit_distance($g,
 					$new_local_best_item);
 	    if ($self->{'debug'} > 150) {
 		print "Edit distance ", $dnewlocal, "\n";
@@ -396,11 +488,23 @@ sub find_next_item {
     }
 
     my (@ap) = @$ap;
+    my ($scan_capture) = "";
+    $self->{'capture_string'} = "";
+    foreach $scan_capture (@ap[0..$ie]) {
+	if ($scan_capture =~ m!$self->{'capture_regexp'}!) {
+	    if ($self->{'debug'} > 50) {
+		print "Capturing $1\n";
+	    }
+	    $self->{'capture_string'} = 
+		$1;
+	}
+    }
+
     @{$ap} = @ap[($ie+1)..$#ap];
     return ($dbest, $best_item);
 }
 
-sub incorporate_item {
+sub _incorporate_item {
     my ($self, $item) = @_;
     my ($g) = $self->{'grammar'};
     my ($i, $j, $gitem, $iprocess);
@@ -412,7 +516,7 @@ sub incorporate_item {
     my ($ginopt) = (0, 0);
     my ($newginopt) = 0;
     my(@g) = @{$g};
-    my(@item) = grep {$self->classify($_) !~ /\(\(\(.*?\)\)\)/} @{$item};
+    my(@item) = grep {$self->_classify($_) !~ /\(\(\(.*?\)\)\)/} @{$item};
     if ($self->{'debug'} > 10) {
 	print Dumper(\@g);
     }
@@ -427,7 +531,7 @@ sub incorporate_item {
 	}   
     }
     my (@gblock, @iblock, $addtag);
-    my ($m) = $self->edit_distance_matrix(\@gprocessed, \@item);
+    my ($m) = $self->_edit_distance_matrix(\@gprocessed, \@item);
     if ($self->{'debug'} > 10) {
 	print $m, "\n";
     }
@@ -458,8 +562,8 @@ sub incorporate_item {
 	    }
 	    @greturn = ($item[$j], @greturn);
 	} elsif ($m->at($i-1, $j-1) == $m->at($i, $j) &&
-	    $self->classify($gprocessed[$i-1]) eq 
-		 $self->classify($item[$j-1])) {
+	    $self->_classify($gprocessed[$i-1]) eq 
+		 $self->_classify($item[$j-1])) {
 	    $direction = "eq";
 	    $i--;
 	    $j--;
@@ -475,7 +579,7 @@ sub incorporate_item {
     return (\@greturn);
 }
 
-sub find_indices {
+sub _find_indices {
     my ($self, $list, $itemref, $index) = @_;
     my ($i, $j, @out);
     my ($current_item) = 0;
@@ -500,8 +604,8 @@ sub find_indices {
 		    $itemref->[$current_item]->[$j], 
 		    " and ", $list->[$i + $j], " at $i $j\n";
 		}
-		if ($self->classify($itemref->[$current_item]->[$j])
-		    ne $self->classify($list->[$i + $j])) {
+		if ($self->_classify($itemref->[$current_item]->[$j])
+		    ne $self->_classify($list->[$i + $j])) {
 		    next loop;
 		}
 	    }
@@ -520,8 +624,8 @@ sub find_indices {
 		" and ", $list->[$i], " at $i\n";
 	    }
 
-	    if ($self->classify($list->[$i]) eq 
-		$self->classify($itemref->[$current_item])) {
+	    if ($self->_classify($list->[$i]) eq 
+		$self->_classify($itemref->[$current_item])) {
 		push (@out, $i);
 		$current_item++;
 		if ($current_item > scalar(@{$itemref})) {
@@ -536,7 +640,7 @@ sub find_indices {
     return @out;
 }
 
-sub dump_hash {
+sub _dump_hash {
     my ($self, $context, $r) = @_;
     if ($self->{'debug'} > 200) {
 	print "Dumping: ";
@@ -548,7 +652,7 @@ sub dump_hash {
     my ($returnval) = "";
 
     foreach $item (@{$context}) {
-	my ($class) = $self->classify($item);
+	my ($class) = $self->_classify($item);
 	if ($class eq "(((nodump)))") {
 	    $dump = 0;
 	} 
@@ -570,7 +674,8 @@ sub dump_hash {
 		    $returnval .= "   $1 ";
 		}
 	    } elsif ($class =~ /<img>/) {
-		if ($item =~ /src/i) {
+		if ($item =~ /src/i &&
+		    $self->{'dump_hrefs'}) {
 		    $item =~ /src=\"(.*?)\"/i;
 		    $returnval .= "   $1 ";
 		}
@@ -593,49 +698,25 @@ sub dump_hash {
 	$returnval =~ s/\s+$//gi;
 	$r->{$current_field} = $returnval;
     }
-}
-
-=pod
-
-=item $self->debug(i)
-
-Set the debug level.  Higher numbers turn on more debug levels.
-
-=cut
-
-sub debug {
-    my($self, $debug) = @_;
-    if (defined($debug)) {
-	$self->{'debug'} = $debug;
+    if ($self->{'capture_field'} ne "" &&
+	$self->{'capture_string'} ne "") {
+	$r->{$self->{'capture_field'}} =
+	    $self->{'capture_string'};
     }
-    return $self->{'debug'};
 }
-
-
-=pod
-
-=item $self->expand_hrefs(i)
-
-If set to one, dump only one record and exit.  This is useful for testing
-
-=cut
-
-
-sub expand_hrefs {
-    my($self, $d1) = @_;
-    if (defined($d1)) {
-	$self->{'expand_hrefs'} = $d1;
-    }
-    return $self->{'expand_hrefs'};
-}
-
 =pod
 
 =back
 
-=head1 EXAMPLE USE
+=head1 EXAMPLES
 
-An example file learn.wrapper is included.
+The distribution contains a sample driver application and test data in
+the examples directory.  To look at the markup for the test data,
+search for the (((BEGIN))) tag.
+
+To run
+
+./examples/learn.wrapper < ./examples/sample.html
 
 =head1 DISCUSSION AND DEVELOPMENT
 

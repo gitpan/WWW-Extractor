@@ -4,5 +4,8 @@ README
 ChangeLog
 lib/WWW/Extractor.pm
 examples/learn.wrapper
+examples/sample.html
 
 
+
+META.yml                                Module meta-data (added by MakeMaker)

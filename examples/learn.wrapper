@@ -12,13 +12,14 @@ my ($end_tags) = 1;
 my ($dump_one) = 0;
 
 GetOptions("debug=i"=>\$debug,
-	   "exact-tables"=>\${exact_tables},
+	   "exact-tables!"=>\${exact_tables},
 	   "start-tags=i"=>\$start_tags,
 	   "dump-one"=>\${dump_one}
 );
 my ($extractor) = WWW::Extractor->new();
 $extractor->debug($debug);
-#
+$extractor->capture("href",
+		    qr/<hr>\*\*\s+(.*?)<br>/);
 
 my ($lp) = "";
 while (<STDIN>) {

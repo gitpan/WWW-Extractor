@@ -25,11 +25,20 @@ DEPENDENCIES
 
 This module requires these other modules and libraries:
 
-  blah blah blah
+    PDL
+
+EXAMPLES
+
+The distribution contains a sample driver application and test data in
+the examples directory.  To look at the markup for the test data,
+search for the (((BEGIN))) tag.
+
+To run
+
+./learn.wrapper < sample.html
 
 COPYRIGHT AND LICENCE
 
-Put the correct copyright and licence information here.
+Copyright (C) 2002, 2003 Globewide Network Academy
 
-Copyright (C) 2002 A. U. Thor blah blah blah
-
+Redistributed under the terms of the Lesser GNU Public License
