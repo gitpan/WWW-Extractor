@@ -1,6 +1,6 @@
 package WWW::Extractor;
 use strict;
-$WWW::Extractor::VERSION = '0.2';
+$WWW::Extractor::VERSION = '0.3';
 
 
 =head1 NAME
@@ -111,42 +111,63 @@ sub new {
     $self->{'exact_tables'} = 1;
     $self->{'start_tags'} =  2;
     $self->{'end_tags'} = 1;
-    $self->{'dump_one'} = 0;
     $self->{'dump_hrefs'} = 0;
+    $self->{'tokens'} = [];
+    $self->{'finish_tag'} = [];
+    $self->{'grammar'} = [];
     return $self;
 }
 
-sub process {
+sub open {
     my ($self, $lp) = @_;
-    my ($ap) = $self->tokenize($lp);
-    my ($g, $context) = $self->initialize($ap);
+    $self->{'tokens'} = 
+	$self->tokenize($lp);
+    my ($g, $context) = $self->initialize($self->{'tokens'});
+    $self->{'grammar'} = $g;
+
     if ($self->{'debug'} > 250) {
 	print "Initial grammar: ", Dumper($g), "\n";
 	print "Initial content: ", Dumper($context), "\n";
     }
-    
+}
+
+sub read {
+    my ($self, $f) = @_;
     my ($i, $gp, $w);
+    my($score, $i) = $self->find_next_item();
     
-    my ($finish_tag) = $self->find_indices($ap, [q/(((END)))/]);
+    %{$f} = ();
 
-    my ($end_tag) = scalar(@{$ap});
-    my(@ap) = @{$ap};
-
-    while (1) {
-	my($score, $i) = $self->find_next_item(\@ap, $g);
-	
-	if ($self->{'debug'} > 150) {
-	    print $score, Dumper($i);
-	}
-	if (!$i) {
-	    last;
-	}
-	my($g, $context) = $self->incorporate_item($g, $i);
-	$self->dump($context);
-	if ($self->{'dump_one'}) {
-	    last;
-	}
+    if ($self->{'debug'} > 150) {
+	print $score, Dumper($i);
     }
+    if (!$i) {
+	return 0;
+    }
+    my($context) = $self->incorporate_item($i);
+       
+    $self->dump_hash($context, $f);
+    return 1;
+}
+
+sub close {
+    my ($self) = @_;
+}
+
+
+sub process {
+    my ($self, $lp) = @_;
+    my (%f);
+    $self->open($lp);
+
+    while ($self->read(\%f)) {
+	my ($item);
+	foreach $item (keys %f) {
+	    print "$item  $f{$item}\n";
+	}
+	print "\n";
+    }
+    $self->close();
 }
 
 sub tokenize {
@@ -310,7 +331,9 @@ sub edit_distance_matrix {
 }
 
 sub find_next_item {
-    my ($self, $ap, $g) = @_;
+    my ($self) = @_;
+    my ($ap) = $self->{'tokens'};
+    my ($g) = $self->{'grammar'};
     my ($dnewlocal, $dlocal, $dbest) = 
 	(998, 999, 1000);
     my ($ib, $ie, $newib) = (0, 0, 0);
@@ -378,7 +401,8 @@ sub find_next_item {
 }
 
 sub incorporate_item {
-    my ($self, $g, $item) = @_;
+    my ($self, $item) = @_;
+    my ($g) = $self->{'grammar'};
     my ($i, $j, $gitem, $iprocess);
     my (@greturn) = ();
     my (@gprocessed) = ();
@@ -417,6 +441,10 @@ sub incorporate_item {
         if ($m->at($i-1, $j) + 1 == $m->at($i, $j)) {
 	    $direction = "w";
 	    $i--;
+	    if ($tag[$oldi]) {
+		@greturn = ($tag[$oldi],  @greturn);
+	    }
+
 	} elsif ($m->at($i, $j-1) + 1 == $m->at($i, $j)) {
 	    $direction = "n";
 	    $j--;
@@ -425,6 +453,9 @@ sub incorporate_item {
 	    $direction = "nw";
 	    $i--;
 	    $j--;
+	    if ($tag[$oldi]) {
+		@greturn = ($tag[$oldi],  @greturn);
+	    }
 	    @greturn = ($item[$j], @greturn);
 	} elsif ($m->at($i-1, $j-1) == $m->at($i, $j) &&
 	    $self->classify($gprocessed[$i-1]) eq 
@@ -432,16 +463,16 @@ sub incorporate_item {
 	    $direction = "eq";
 	    $i--;
 	    $j--;
+	    if ($tag[$oldi]) {
+		@greturn = ($tag[$oldi],  @greturn);
+	    }
 	    @greturn = ($item[$j], @greturn);
 	} else {
 	    print "ERROR:";
 	}
-	if ($tag[$oldi] && ($oldi != $i)) {
-	    @greturn = ($tag[$oldi],  @greturn);
-	}
     }
 
-    return ($g, \@greturn);
+    return (\@greturn);
 }
 
 sub find_indices {
@@ -505,15 +536,17 @@ sub find_indices {
     return @out;
 }
 
-sub dump {
-    my ($self, $context) = @_;
+sub dump_hash {
+    my ($self, $context, $r) = @_;
     if ($self->{'debug'} > 200) {
 	print "Dumping: ";
 	print Dumper($context);
     }
     my ($item);
-    my ($returnval) = "";
     my ($dump) = 1;
+    my ($current_field) = "";
+    my ($returnval) = "";
+
     foreach $item (@{$context}) {
 	my ($class) = $self->classify($item);
 	if ($class eq "(((nodump)))") {
@@ -523,8 +556,12 @@ sub dump {
      	if ($dump) {
 	    if ($class =~ /\(\(\((.*?)\)\)\)/) {
 		my($tag) = $1;
-		$returnval =~ s/\s+$//gi;
-		$returnval .= "\n$tag  ";
+		if ($current_field ne "") {
+		    $returnval =~ s/\s+$//gi;
+		    $r->{$current_field} = $returnval;
+		    $returnval = "";
+		}
+		$current_field = $tag;
 	    } elsif ($class =~ /\[\[\[(.*?)\]\]\]/) {
 		$returnval .= "$1";
 	    } elsif ($class =~ /<a>/) {
@@ -552,8 +589,10 @@ sub dump {
 	    $dump = 1;
 	}
     }
-    $returnval =~ s/\n(\s*\n)+/\n/gis;
-    print "$returnval\n\n";
+    if ($current_field ne "") {
+	$returnval =~ s/\s+$//gi;
+	$r->{$current_field} = $returnval;
+    }
 }
 
 =pod
@@ -570,23 +609,6 @@ sub debug {
 	$self->{'debug'} = $debug;
     }
     return $self->{'debug'};
-}
-
-=pod
-
-=item $self->dump_one(i)
-
-If set to one, dump only one record and exit.  This is useful for testing
-
-=cut
-
-
-sub dump_one {
-    my($self, $d1) = @_;
-    if (defined($d1)) {
-	$self->{'dump_one'} = $d1;
-    }
-    return $self->{'dump_one'};
 }
 
 
@@ -611,6 +633,9 @@ sub expand_hrefs {
 
 =back
 
+=head1 EXAMPLE USE
+
+An example file learn.wrapper is included.
 
 =head1 DISCUSSION AND DEVELOPMENT
 

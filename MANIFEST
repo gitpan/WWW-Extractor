@@ -1,6 +1,8 @@
 Makefile.PL
 MANIFEST
 README
+ChangeLog
 lib/WWW/Extractor.pm
+examples/learn.wrapper
 
 
