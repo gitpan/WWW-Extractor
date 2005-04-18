@@ -1,7 +1,6 @@
 package WWW::Extractor;
 use strict;
-$WWW::Extractor::VERSION = '0.7';
-
+$WWW::Extractor::VERSION = '0.8';
 
 =head1 NAME
 
@@ -205,7 +204,9 @@ Closes off the string
 sub close {
     my ($self) = @_;
 }
+
 =pod
+
 =item $self->capture($field, $regexp)
 
 Captures a string that is outside of an entry and inserts it into an entry hash.  The
@@ -239,6 +240,7 @@ sub debug {
 }
 
 =pod
+
 =item $self->expand_hrefs(i)
 
 If set to one then expand out the internal A tags and IMG tags to
@@ -255,6 +257,7 @@ sub expand_hrefs {
 }
 
 =pod
+
 =item $self->start_tags(i)
 
 Set to the number of tags to match at the beginning of each entry.
@@ -272,6 +275,7 @@ sub start_tags {
 
 
 =pod
+
 =item $self->end_tags(i)
 
 Number of tags to match at the end of an entry,  The default is 1.
@@ -407,9 +411,6 @@ sub _classify {
 
     if ($item =~ /^<([^>\s]+)\s*.*>$/is) {
 	return "<" . lc($1) . ">";
-    }
-    if ($item =~ /^\-/) {
-	return "-";
     }
     if ($item =~ /^\(/) {
 	return "(";
